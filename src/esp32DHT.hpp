@@ -68,10 +68,11 @@ class DHT {
   RingbufHandle_t _ringBuf;
   Callback _cb;
 #if DHT_ENABLE_RAW
-  public:
-    void getRawData(uint32_t array[]);
-  private:
-    uint32_t _rawData[42];
+
+ public:
+  void getRawData(uint32_t array[]);
+ private:
+  uint32_t _rawData[42];
 #endif
 };
 
