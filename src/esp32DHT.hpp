@@ -71,6 +71,7 @@ class DHT {
 
  public:
   void getRawData(uint32_t array[]);
+
  private:
   uint32_t _rawData[42];
 #endif
