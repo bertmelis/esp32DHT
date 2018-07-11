@@ -1,0 +1,22 @@
+{
+  "name": "DHT",
+  "version": "1.0.0",
+  "keywords": "DHT, DTH11, DHT22, RMT, callback, Arduino, ESP32",
+  "description": "DHT sensor library for ESP32 using the RMT peripheral",
+  "homepage": "https://github.com/bertmelis/esp32DHT",
+  "license": "MIT",
+  "authors": {
+    "name": "Bert Melis",
+    "url": "https://github.com/bertmelis",
+    "maintainer": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bertmelis/esp32DHT.git",
+    "branch": "master"
+  },
+  "frameworks": "arduino",
+  "platforms": [
+    "espressif32"
+  ]
+}

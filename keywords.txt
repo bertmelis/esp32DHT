@@ -1,0 +1,24 @@
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+DHT11	KEYWORD1
+DHT22	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+setPin	KEYWORD2
+setCallback	KEYWORD2
+read	KEYWORD2
+ready	KEYWORD2
+getTemperature	KEYWORD2
+getHumidity	KEYWORD2
+getError	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+#yourLITERAL	LITERAL1
