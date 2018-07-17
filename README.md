@@ -2,8 +2,10 @@
 
 [![Build Status](https://travis-ci.com/bertmelis/esp32DHT.svg?branch=master)](https://travis-ci.com/bertmelis/esp32DHT)
 
-This is a DHT11/22 library for ESP32 using the RMT peripheral, for use in the Arduino framework. The library is non blocking, doesn't use delay and is usable in async frameworks.
-The library is kept simple on purpose. You are responsible yourself to follow the sensor's constraints (like polling frequency) and logical programming errors. Supplementary functions like dew point calculation are not included.
+This is a DHT11/22 library for ESP32 using the RMT peripheral, for use in the Arduino framework.  
+For ESP8266, please look into this repo: [DHT](https://github.com/bertmelis/DHT)
+
+The library is non blocking, doesn't use delay and is usable in async frameworks. The library is kept simple on purpose. You are responsible yourself to follow the sensor's constraints (like polling frequency) and logical programming errors. Supplementary functions like dew point calculation are not included.
 
 > Warning: Although this lib should work, I didn't yet manage to test it thouroughly (lack of proper hardware).
 
