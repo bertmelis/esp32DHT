@@ -97,6 +97,8 @@ const char* DHT::getError() {
     strcpy(_errorStr, "DATA");   // NOLINT
   } else if (_status == -4) {
     strcpy(_errorStr, "CS");   // NOLINT
+  } else if (_status == -5) {
+    strcpy(_errorStr, "QTY");   // NOLINT
   }
   return _errorStr;
 }
@@ -113,7 +115,7 @@ void DHT::_handleData(DHT* instance) {
   size_t rx_size = 0;
   while (1) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);  // block and wait for notification
-    // blocks untill data is available or timeouts after portMAX_DELAY
+    // blocks untill data is available or timeouts after RMT_TICK_10_US * 100
     rmt_item32_t* items = static_cast<rmt_item32_t*>(xRingbufferReceive(instance->_ringBuf, &rx_size, RMT_TICK_10_US * 100));
     if (items) {
 #if DHT_ENABLE_RAW
@@ -139,35 +141,25 @@ void DHT::_handleData(DHT* instance) {
   }
 }
 
-bool DHT::_isInRange(rmt_item32_t item, uint32_t lowDuration, uint32_t highDuration, uint32_t tolerance) {
-  uint32_t lowValue = item.duration0 * 10 / RMT_TICK_10_US;
-  uint32_t highValue = item.duration1 * 10 / RMT_TICK_10_US;
-  if (lowValue < (lowDuration - tolerance) || lowValue > (lowDuration + tolerance) ||
-    (highValue != 0 &&
-    (highValue < (highDuration - tolerance) || highValue > (highDuration + tolerance)))) {
-    return false;
-  }
-  return true;
-}
-
-void DHT::_decode(rmt_item32_t *data, int numItems) {
-  if (!_isInRange(data[0], 80, 80, 20)) {
-    _status = -2;
-  } else if (numItems != 42) {
-    _status = -3;
+void DHT::_decode(rmt_item32_t* data, int numItems) {
+  if (numItems != 41) {  // TODO(bertmelis): ACK is not included how come?
+    _status = -5;
+  // } else if (!_isInRange(data[0], 80, 80, 20)) {
+  //   _status = -2;
   } else {
-    // parse data
-    for (uint8_t i = 1; i < numItems - 1; ++i) {  // exclude ack and end
-      if (_isInRange(data[i], 50, 70, 20)) {
-        _data[(i - 1) / 8] |= 1;  // shift and add bit
-      } else if (_isInRange(data[i], 50, 26, 20)) {
-        _data[(i - 1) / 8] <<= 1;  // shift (and add 0)
+    for (uint8_t i = 0; i < numItems - 1; ++i) {  // don't include tail
+      uint8_t pulse = (data[i].duration0 * 10 / RMT_TICK_10_US) + (data[i].duration1 * 10 / RMT_TICK_10_US);
+      if (pulse > 55 && pulse < 145) {
+        _data[i / 8] <<= 1;  // shift left
+        if (pulse > 120) {
+          _data[i / 8] |= 1;
+        }
       } else {
         _status = -3;  // DATA error
         return;
       }
     }
-    if (_data[0] + _data[1] + _data[2] + _data[3] == (_data[4] & 0xFF)) {
+    if (_data[4] == ((_data[0] + _data[1] + _data[2] + _data[3]) & 0xFF)) {
       _status = 1;
     } else {
       _status = -4;  // checksum error
@@ -194,7 +186,6 @@ float DHT11::getHumidity() {
 float DHT22::getTemperature() {
   if (_status < 1) return NAN;
   float temp = (((_data[2] & 0x7F) << 8) | _data[3]) * 0.1;
-  // float temp = word(_data[2] & 0x7F, _data[3]) * 0.1;
   if (_data[2] & 0x80) {  // negative temperature
     temp = -temp;
   }
@@ -204,5 +195,4 @@ float DHT22::getTemperature() {
 float DHT22::getHumidity() {
   if (_status < 1) return NAN;
   return ((_data[0] << 8) | _data[1]) * 0.1;
-  // return word(_data[0], _data[1]) * 0.1;
 }

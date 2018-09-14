@@ -24,7 +24,9 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #pragma once
 
+#ifndef DHT_ENABLE_RAW
 #define DHT_ENABLE_RAW 0
+#endif
 
 extern "C" {
   #include <freertos/FreeRTOS.h>
@@ -51,13 +53,12 @@ class DHT {
 
  protected:
   int8_t _status;
-  int8_t _data[5];
+  uint8_t _data[5];
 
  private:
   static void _handleTimer(DHT* instance);
   static void _handleData(DHT* instance);
-  bool _isInRange(rmt_item32_t item, uint32_t lowDuration, uint32_t highDuration, uint32_t tolerance);
-  void _decode(rmt_item32_t *data, int numItems);
+  void _decode(rmt_item32_t* data, int numItems);
 
  private:
   uint8_t _pin;
