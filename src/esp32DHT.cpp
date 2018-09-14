@@ -24,8 +24,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "esp32DHT.hpp"  // NOLINT
 
-#define RMT_CLK_DIV 100
-#define RMT_TICK_10_US (80000000 / RMT_CLK_DIV / 100000)
+#define RMT_CLK_DIV 80
 
 DHT::DHT() :
   _status(0),
@@ -52,7 +51,7 @@ void DHT::setup(uint8_t pin, rmt_channel_t channel) {
   config.mem_block_num = 2;
   config.rx_config.filter_en = 1;
   config.rx_config.filter_ticks_thresh = 10;
-  config.rx_config.idle_threshold = RMT_TICK_10_US * 10;
+  config.rx_config.idle_threshold = 1000;
   config.clk_div = RMT_CLK_DIV;
   rmt_config(&config);
   rmt_driver_install(_channel, 400, 0);  // 400 words for ringbuffer containing pulse trains from DHT
@@ -104,25 +103,25 @@ const char* DHT::getError() {
 }
 
 void DHT::_handleTimer(DHT* instance) {
-  digitalWrite(instance->_pin, HIGH);
   pinMode(instance->_pin, INPUT);
+  rmt_rx_start(instance->_channel, 1);
   rmt_set_pin(instance->_channel, RMT_MODE_RX, static_cast<gpio_num_t>(instance->_pin));  // reset after using pin as output
   xTaskNotifyGive(instance->_task);
-  rmt_rx_start(instance->_channel, 1);
 }
 
 void DHT::_handleData(DHT* instance) {
   size_t rx_size = 0;
   while (1) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);  // block and wait for notification
-    // blocks untill data is available or timeouts after RMT_TICK_10_US * 100
-    rmt_item32_t* items = static_cast<rmt_item32_t*>(xRingbufferReceive(instance->_ringBuf, &rx_size, RMT_TICK_10_US * 100));
+    // blocks untill data is available or timeouts after 1000
+    rmt_item32_t* items = static_cast<rmt_item32_t*>(xRingbufferReceive(instance->_ringBuf, &rx_size, 1000));
     if (items) {
 #if DHT_ENABLE_RAW
     uint8_t qty;
     qty = (rx_size / sizeof(rmt_item32_t) < 42) ? rx_size / sizeof(rmt_item32_t) : 42;
+    for (uint8_t i = 0; i < 42; ++i) instance->_rawData[i] = 0;
     for (uint8_t i = 0; i < qty; ++i) {
-      instance->_rawData[i] = (items[i].duration0 * 10 / RMT_TICK_10_US) + (items[i].duration1 * 10 / RMT_TICK_10_US);
+      instance->_rawData[i] = (items[i].duration0) + (items[i].duration1);
     }
 #endif
       instance->_decode(items, rx_size/sizeof(rmt_item32_t));
@@ -142,17 +141,17 @@ void DHT::_handleData(DHT* instance) {
 }
 
 void DHT::_decode(rmt_item32_t* data, int numItems) {
-  if (numItems != 41) {  // TODO(bertmelis): ACK is not included how come?
+  if (numItems != 42) {
     _status = -5;
-  // } else if (!_isInRange(data[0], 80, 80, 20)) {
-  //   _status = -2;
+  } else if ((data[0].duration0 + data[0].duration1) < 140 && (data[0].duration0 + data[0].duration1) > 180) {
+    _status = -2;
   } else {
-    for (uint8_t i = 0; i < numItems - 1; ++i) {  // don't include tail
-      uint8_t pulse = (data[i].duration0 * 10 / RMT_TICK_10_US) + (data[i].duration1 * 10 / RMT_TICK_10_US);
+    for (uint8_t i = 1; i < numItems - 1; ++i) {  // don't include tail
+      uint8_t pulse = data[i].duration0 + data[i].duration1;
       if (pulse > 55 && pulse < 145) {
-        _data[i / 8] <<= 1;  // shift left
+        _data[(i - 1) / 8] <<= 1;  // shift left
         if (pulse > 120) {
-          _data[i / 8] |= 1;
+          _data[(i - 1) / 8] |= 1;
         }
       } else {
         _status = -3;  // DATA error
