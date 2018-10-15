@@ -113,7 +113,7 @@ void DHT::_handleData(DHT* instance) {
   size_t rx_size = 0;
   while (1) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);  // block and wait for notification
-    // blocks untill data is available or timeouts after 1000
+    // blocks until data is available or timeouts after 1000
     rmt_item32_t* items = static_cast<rmt_item32_t*>(xRingbufferReceive(instance->_ringBuf, &rx_size, 1000));
     if (items) {
 #if DHT_ENABLE_RAW
