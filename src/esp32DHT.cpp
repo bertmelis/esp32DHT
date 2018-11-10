@@ -30,10 +30,21 @@ DHT::DHT() :
   _status(0),
   _data{0},
   _pin(0),
-  _errorStr{"\0"},
+  _channel(RMT_CHANNEL_0),
+  _onData(nullptr),
+  _onError(nullptr),
   _timer(nullptr),
-  _task(nullptr),
-  _cb(nullptr) {}
+  _task(nullptr) {}
+
+DHT::~DHT() {
+  if (_timer) {  // if _timer is true, setup() has been called
+                 // so RMT driver is loaded and the aux task is
+                 // running
+    esp_timer_delete(_timer);
+    rmt_driver_uninstall(_channel);
+    vTaskDelete(_task);
+  }
+}
 
 void DHT::setup(uint8_t pin, rmt_channel_t channel) {
   _pin = pin;
@@ -42,7 +53,7 @@ void DHT::setup(uint8_t pin, rmt_channel_t channel) {
   _timerConfig.arg = static_cast<void*>(this);
   _timerConfig.callback = reinterpret_cast<esp_timer_cb_t>(_handleTimer);
   _timerConfig.dispatch_method = ESP_TIMER_TASK;
-  _timerConfig.name = "Ticker";
+  _timerConfig.name = "esp32DHTTimer";
   esp_timer_create(&_timerConfig, &_timer);
   rmt_config_t config;
   config.rmt_mode = RMT_MODE_RX;
@@ -56,19 +67,17 @@ void DHT::setup(uint8_t pin, rmt_channel_t channel) {
   rmt_config(&config);
   rmt_driver_install(_channel, 400, 0);  // 400 words for ringbuffer containing pulse trains from DHT
   rmt_get_ringbuf_handle(_channel, &_ringBuf);
-  xTaskCreate((TaskFunction_t)&_handleData, "DHT_watchRingbuf", 2048, this, 5, &_task);
+  xTaskCreate((TaskFunction_t)&_handleData, "esp32DHT", 2048, this, 5, &_task);
   pinMode(_pin, OUTPUT);
   digitalWrite(_pin, HIGH);
 }
 
-DHT::~DHT() {
-  esp_timer_delete(_timer);
-  rmt_driver_uninstall(_channel);
-  vTaskDelete(_task);
+void DHT::onData(esp32DHTInternals::OnData_CB callback) {
+  _onData = callback;
 }
 
-void DHT::setCallback(Callback cb) {
-  _cb = cb;
+void DHT::onError(esp32DHTInternals::OnError_CB callback) {
+  _onError = callback;
 }
 
 void DHT::read() {
@@ -79,27 +88,17 @@ void DHT::read() {
   _status = 0;
 }
 
-int8_t DHT::available() const {
-  return _status;
-}
-
-const char* DHT::getError() {
+const char* DHT::getError() const {
   if (_status == 1) {
-    strcpy(_errorStr, "OK");  // NOLINT
-  } else if (_status == 0) {
-    strcpy(_errorStr, "BUSY");  // NOLINT
-  } else if (_status == -1) {
-    strcpy(_errorStr, "TO");   // NOLINT
-  } else if (_status == -2) {
-    strcpy(_errorStr, "NACK");   // NOLINT
-  } else if (_status == -3) {
-    strcpy(_errorStr, "DATA");   // NOLINT
-  } else if (_status == -4) {
-    strcpy(_errorStr, "CS");   // NOLINT
-  } else if (_status == -5) {
-    strcpy(_errorStr, "QTY");   // NOLINT
+    return "TO";
+  } else if (_status == 2) {
+    return "NACK";
+  } else if (_status == 3) {
+    return "DATA";
+  } else if (_status == 4) {
+    return "CS";
   }
-  return _errorStr;
+  return "OK";
 }
 
 void DHT::_handleTimer(DHT* instance) {
@@ -116,35 +115,26 @@ void DHT::_handleData(DHT* instance) {
     // blocks until data is available or timeouts after 1000
     rmt_item32_t* items = static_cast<rmt_item32_t*>(xRingbufferReceive(instance->_ringBuf, &rx_size, 1000));
     if (items) {
-#if DHT_ENABLE_RAW
-    uint8_t qty;
-    qty = (rx_size / sizeof(rmt_item32_t) < 42) ? rx_size / sizeof(rmt_item32_t) : 42;
-    for (uint8_t i = 0; i < 42; ++i) instance->_rawData[i] = 0;
-    for (uint8_t i = 0; i < qty; ++i) {
-      instance->_rawData[i] = (items[i].duration0) + (items[i].duration1);
-    }
-#endif
       instance->_decode(items, rx_size/sizeof(rmt_item32_t));
       vRingbufferReturnItem(instance->_ringBuf, static_cast<void*>(items));
-      instance->_cb(instance->_status);
       rmt_rx_stop(instance->_channel);
       pinMode(instance->_pin, OUTPUT);
       digitalWrite(instance->_pin, HIGH);
     } else {
-      instance->_status = -1;  // timeout error
-      instance->_cb(instance->_status);
+      instance->_status = 1;  // timeout error
       rmt_rx_stop(instance->_channel);
       pinMode(instance->_pin, OUTPUT);
       digitalWrite(instance->_pin, HIGH);
     }
+    instance->_tryCallback();
   }
 }
 
 void DHT::_decode(rmt_item32_t* data, int numItems) {
   if (numItems != 42) {
-    _status = -5;
+    _status = 5;
   } else if ((data[0].duration0 + data[0].duration1) < 140 && (data[0].duration0 + data[0].duration1) > 180) {
-    _status = -2;
+    _status = 2;
   } else {
     for (uint8_t i = 1; i < numItems - 1; ++i) {  // don't include tail
       uint8_t pulse = data[i].duration0 + data[i].duration1;
@@ -154,35 +144,37 @@ void DHT::_decode(rmt_item32_t* data, int numItems) {
           _data[(i - 1) / 8] |= 1;
         }
       } else {
-        _status = -3;  // DATA error
+        _status = 3;  // DATA error
         return;
       }
     }
     if (_data[4] == ((_data[0] + _data[1] + _data[2] + _data[3]) & 0xFF)) {
       _status = 1;
     } else {
-      _status = -4;  // checksum error
+      _status = 4;  // checksum error
     }
   }
 }
 
-#if DHT_ENABLE_RAW
-void DHT::getRawData(uint32_t array[]) {
-  for (uint8_t i = 0; i < 42; ++i) array[i] = _rawData[i];
+void DHT::_tryCallback() {
+  if (_status == 0) {
+    if (_onData) _onData(_getHumidity(), _getTemperature());
+  } else {
+    if (_onError) _onError(_status);
+  }
 }
-#endif
 
-float DHT11::getTemperature() {
+float DHT11::_getTemperature() {
   if (_status < 1) return NAN;
   return static_cast<float>(_data[2]);
 }
 
-float DHT11::getHumidity() {
+float DHT11::_getHumidity() {
   if (_status < 1) return NAN;
   return static_cast<float>(_data[0]);
 }
 
-float DHT22::getTemperature() {
+float DHT22::_getTemperature() {
   if (_status < 1) return NAN;
   float temp = (((_data[2] & 0x7F) << 8) | _data[3]) * 0.1;
   if (_data[2] & 0x80) {  // negative temperature
@@ -191,7 +183,7 @@ float DHT22::getTemperature() {
   return temp;
 }
 
-float DHT22::getHumidity() {
+float DHT22::_getHumidity() {
   if (_status < 1) return NAN;
   return ((_data[0] << 8) | _data[1]) * 0.1;
 }

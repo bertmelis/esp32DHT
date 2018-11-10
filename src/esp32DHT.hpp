@@ -24,10 +24,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #pragma once
 
-#ifndef DHT_ENABLE_RAW
-#define DHT_ENABLE_RAW 0
-#endif
-
 extern "C" {
   #include <freertos/FreeRTOS.h>
   #include <freertos/task.h>
@@ -37,55 +33,53 @@ extern "C" {
 }
 #include <functional>
 
-typedef std::function<void(int8_t)> Callback;
+namespace esp32DHTInternals {
+
+typedef std::function<void(float, float)> OnData_CB;
+typedef std::function<void(uint8_t)> OnError_CB;
+
+}  // end namespace esp32DHTInternals
 
 class DHT {
  public:
   DHT();
   ~DHT();
   void setup(uint8_t pin, rmt_channel_t channel = RMT_CHANNEL_0);  // setPin does complete setup of DHT lib
-  void setCallback(Callback cb);
+  void onData(esp32DHTInternals::OnData_CB callback);
+  void onError(esp32DHTInternals::OnError_CB callback);
   void read();
-  int8_t available() const;
-  virtual float getTemperature() = 0;
-  virtual float getHumidity() = 0;
-  const char* getError();
+  const char* getError() const;
 
  protected:
-  int8_t _status;
+  uint8_t _status;
   uint8_t _data[5];
 
  private:
   static void _handleTimer(DHT* instance);
   static void _handleData(DHT* instance);
   void _decode(rmt_item32_t* data, int numItems);
+  void _tryCallback();
+  virtual float _getTemperature() = 0;
+  virtual float _getHumidity() = 0;
 
  private:
   uint8_t _pin;
-  char _errorStr[5];
   rmt_channel_t _channel;
+  esp32DHTInternals::OnData_CB _onData;
+  esp32DHTInternals::OnError_CB _onError;
   esp_timer_handle_t _timer;
   TaskHandle_t _task;
   RingbufHandle_t _ringBuf;
-  Callback _cb;
-#if DHT_ENABLE_RAW
-
- public:
-  void getRawData(uint32_t array[]);
-
- private:
-  uint32_t _rawData[42];
-#endif
 };
 
 class DHT11 : public DHT {
- public:
-  float getTemperature();
-  float getHumidity();
+ private:
+  float _getTemperature();
+  float _getHumidity();
 };
 
 class DHT22 : public DHT {
- public:
-  float getTemperature();
-  float getHumidity();
+ private:
+  float _getTemperature();
+  float _getHumidity();
 };
