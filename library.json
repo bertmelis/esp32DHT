@@ -1,5 +1,5 @@
 {
-  "name": "DHT",
+  "name": "esp32DHT",
   "version": "1.0.1",
   "keywords": "DHT, DTH11, DHT22, RMT, callback, Arduino, ESP32",
   "description": "DHT sensor library for ESP32 using the RMT peripheral",
