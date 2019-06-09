@@ -89,7 +89,9 @@ void DHT::read() {
 }
 
 const char* DHT::getError() const {
-  if (_status == 1) {
+  if (_status == 0) {
+    return "OK";
+  } else if (_status == 1) {
     return "TO";
   } else if (_status == 2) {
     return "NACK";
@@ -97,8 +99,12 @@ const char* DHT::getError() const {
     return "DATA";
   } else if (_status == 4) {
     return "CS";
+  } else if (_status == 5) {
+    return "UNDERFLOW";
+  } else if (_status == 6) {
+    return "OVERFLOW";
   }
-  return "OK";
+  return "UNKNOWN";
 }
 
 void DHT::_handleTimer(DHT* instance) {
@@ -131,8 +137,10 @@ void DHT::_handleData(DHT* instance) {
 }
 
 void DHT::_decode(rmt_item32_t* data, int numItems) {
-  if (numItems != 42) {
+  if (numItems < 42) {
     _status = 5;
+  } else if (numItems > 42) {
+    _status = 6;
   } else if ((data[0].duration0 + data[0].duration1) < 140 && (data[0].duration0 + data[0].duration1) > 180) {
     _status = 2;
   } else {
@@ -149,7 +157,7 @@ void DHT::_decode(rmt_item32_t* data, int numItems) {
       }
     }
     if (_data[4] == ((_data[0] + _data[1] + _data[2] + _data[3]) & 0xFF)) {
-      _status = 1;
+      _status = 0;
     } else {
       _status = 4;  // checksum error
     }
@@ -165,17 +173,17 @@ void DHT::_tryCallback() {
 }
 
 float DHT11::_getTemperature() {
-  if (_status < 1) return NAN;
+  if (_status != 0) return NAN;
   return static_cast<float>(_data[2]);
 }
 
 float DHT11::_getHumidity() {
-  if (_status < 1) return NAN;
+  if (_status != 0) return NAN;
   return static_cast<float>(_data[0]);
 }
 
 float DHT22::_getTemperature() {
-  if (_status < 1) return NAN;
+  if (_status != 0) return NAN;
   float temp = (((_data[2] & 0x7F) << 8) | _data[3]) * 0.1;
   if (_data[2] & 0x80) {  // negative temperature
     temp = -temp;
@@ -184,6 +192,6 @@ float DHT22::_getTemperature() {
 }
 
 float DHT22::_getHumidity() {
-  if (_status < 1) return NAN;
+  if (_status != 0) return NAN;
   return ((_data[0] << 8) | _data[1]) * 0.1;
 }
