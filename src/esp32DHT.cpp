@@ -95,10 +95,10 @@ void DHT::_readSensor(DHT* instance) {
   size_t rx_size = 0;
   while (1) {
     // reset
-    instance->_data[0] = 
-    instance->_data[1] = 
-    instance->_data[2] = 
-    instance->_data[3] = 
+    instance->_data[0] =
+    instance->_data[1] =
+    instance->_data[2] =
+    instance->_data[3] =
     instance->_data[4] = 0;
     instance->_status = 0;
 
