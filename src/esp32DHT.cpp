@@ -111,7 +111,7 @@ void DHT::_readSensor(DHT* instance) {
     pinMode(instance->_pin, INPUT);
     rmt_rx_start(instance->_channel, 1);
     rmt_set_pin(instance->_channel, RMT_MODE_RX, static_cast<gpio_num_t>(instance->_pin));  // reset after using pin as output
-    
+
     // blocks until data is available or timeouts after 1000
     rmt_item32_t* items = static_cast<rmt_item32_t*>(xRingbufferReceive(instance->_ringBuf, &rx_size, 1000));
     if (items) {
