@@ -33,28 +33,16 @@ DHT::DHT() :
   _channel(RMT_CHANNEL_0),
   _onData(nullptr),
   _onError(nullptr),
-  _timer(nullptr),
   _task(nullptr) {}
 
 DHT::~DHT() {
-  if (_timer) {  // if _timer is true, setup() has been called
-                 // so RMT driver is loaded and the aux task is
-                 // running
-    esp_timer_delete(_timer);
-    rmt_driver_uninstall(_channel);
-    vTaskDelete(_task);
-  }
+  rmt_driver_uninstall(_channel);
+  vTaskDelete(_task);
 }
 
 void DHT::setup(uint8_t pin, rmt_channel_t channel) {
   _pin = pin;
   _channel = channel;
-  esp_timer_create_args_t _timerConfig;
-  _timerConfig.arg = static_cast<void*>(this);
-  _timerConfig.callback = reinterpret_cast<esp_timer_cb_t>(_handleTimer);
-  _timerConfig.dispatch_method = ESP_TIMER_TASK;
-  _timerConfig.name = "esp32DHTTimer";
-  esp_timer_create(&_timerConfig, &_timer);
   rmt_config_t config;
   config.rmt_mode = RMT_MODE_RX;
   config.channel = _channel;
@@ -67,7 +55,7 @@ void DHT::setup(uint8_t pin, rmt_channel_t channel) {
   rmt_config(&config);
   rmt_driver_install(_channel, 400, 0);  // 400 words for ringbuffer containing pulse trains from DHT
   rmt_get_ringbuf_handle(_channel, &_ringBuf);
-  xTaskCreate((TaskFunction_t)&_handleData, "esp32DHT", 2048, this, 5, &_task);
+  xTaskCreate((TaskFunction_t)&_readSensor, "esp32DHT", 2048, this, 5, &_task);
   pinMode(_pin, OUTPUT);
   digitalWrite(_pin, HIGH);
 }
@@ -81,11 +69,7 @@ void DHT::onError(esp32DHTInternals::OnError_CB callback) {
 }
 
 void DHT::read() {
-  // _pin should be set to OUTPUT and HIGH
-  digitalWrite(_pin, LOW);
-  esp_timer_start_once(_timer, 18 * 1000);  // timer is in microseconds
-  _data[0] = _data[1] = _data[2] = _data[3] = _data[4] = 0;
-  _status = 0;
+  xTaskNotifyGive(_task);
 }
 
 const char* DHT::getError() const {
@@ -107,17 +91,27 @@ const char* DHT::getError() const {
   return "UNKNOWN";
 }
 
-void DHT::_handleTimer(DHT* instance) {
-  pinMode(instance->_pin, INPUT);
-  rmt_rx_start(instance->_channel, 1);
-  rmt_set_pin(instance->_channel, RMT_MODE_RX, static_cast<gpio_num_t>(instance->_pin));  // reset after using pin as output
-  xTaskNotifyGive(instance->_task);
-}
-
-void DHT::_handleData(DHT* instance) {
+void DHT::_readSensor(DHT* instance) {
   size_t rx_size = 0;
   while (1) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);  // block and wait for notification
+    // reset
+    instance->_data[0] = 
+    instance->_data[1] = 
+    instance->_data[2] = 
+    instance->_data[3] = 
+    instance->_data[4] = 0;
+    instance->_status = 0;
+
+    // block and wait for notification
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+    // give start signal to sensor
+    digitalWrite(instance->_pin, LOW);
+    vTaskDelay(18);
+    pinMode(instance->_pin, INPUT);
+    rmt_rx_start(instance->_channel, 1);
+    rmt_set_pin(instance->_channel, RMT_MODE_RX, static_cast<gpio_num_t>(instance->_pin));  // reset after using pin as output
+    
     // blocks until data is available or timeouts after 1000
     rmt_item32_t* items = static_cast<rmt_item32_t*>(xRingbufferReceive(instance->_ringBuf, &rx_size, 1000));
     if (items) {
@@ -132,6 +126,8 @@ void DHT::_handleData(DHT* instance) {
       pinMode(instance->_pin, OUTPUT);
       digitalWrite(instance->_pin, HIGH);
     }
+
+    // return results
     instance->_tryCallback();
   }
 }

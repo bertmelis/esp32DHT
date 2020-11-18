@@ -55,8 +55,7 @@ class DHT {
   uint8_t _data[5];
 
  private:
-  static void _handleTimer(DHT* instance);
-  static void _handleData(DHT* instance);
+  static void _readSensor(DHT* instance);
   void _decode(rmt_item32_t* data, int numItems);
   void _tryCallback();
   virtual float _getTemperature() = 0;
@@ -67,7 +66,6 @@ class DHT {
   rmt_channel_t _channel;
   esp32DHTInternals::OnData_CB _onData;
   esp32DHTInternals::OnError_CB _onError;
-  esp_timer_handle_t _timer;
   TaskHandle_t _task;
   RingbufHandle_t _ringBuf;
 };
