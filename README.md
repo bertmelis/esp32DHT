@@ -45,6 +45,11 @@ void loop() {
 >
 > Read more about RMT in the docs: [ESP-IDF documentation](https://esp-idf.readthedocs.io/en/latest/api-reference/peripherals/rmt.html)
 
+## Known issues
+
+- When reading out the sensor for the first time after powerup, the lib returns an "UNDERFLOW" error. The next readings will be correct.
+- Use the issue tracker if you encounter any other problems.
+
 ## History
 
 Whatever can be done using hardware should not be done by software. ESP32 has a RMT peripheral device which is remarkably versatile. As the DHT sensors rely on tight timing, the RMT device is perfect to accomplish reliable communication. I didn't find any other Arduino library that uses the RMT and/or doesn't block during communication. So I created my own one.
