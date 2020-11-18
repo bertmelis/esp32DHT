@@ -1,6 +1,6 @@
 # esp32DHT
 
-[![Build Status](https://travis-ci.com/bertmelis/esp32DHT.svg?branch=master)](https://travis-ci.com/bertmelis/esp32DHT)
+![Building](https://github.com/bertmelis/esp32DHT/workflows/Building/badge.svg) ![Linting](https://github.com/bertmelis/esp32DHT/workflows/Linting/badge.svg)
 
 This is a DHT11/22 library for ESP32 using the RMT peripheral, for use in the Arduino framework.  
 For ESP8266, please look into this repo: [DHT](https://github.com/bertmelis/DHT)
