@@ -40,7 +40,7 @@ void setup() {
   Serial.begin(74880);
   sensor.setup(23);  // pin 23 is DATA, RMT channel defaults to channel 0 and 1
   sensor.onData([](float humidity, float temperature) {
-    Serial.printf("Temp: %g°C\nHumid: %g%%\n", temperature,humidity);
+    Serial.printf("Temp: %g°C\nHumid: %g%%\n", temperature, humidity);
   });
   sensor.onError([](uint8_t error) {
     Serial.printf("Sensor error: %s", sensor.getError());

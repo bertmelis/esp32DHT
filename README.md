@@ -23,12 +23,11 @@ DHT22 sensor;
 void setup() {
   Serial.begin(112500);
   sensor.setup(23);
-  sensor.setCallback([](int8_t result) {
-    if (result > 0) {
-      Serial.printf("Temp: %.1f°C\nHumid: %.1f%%\n", sensor.getTemperature(), sensor.getHumidity());
-    } else {
-      Serial.printf("Sensor error: %s", sensor.getError());
-    }
+  sensor.onData([](float humid, float temp) {
+    Serial.printf("Temp: %.1f°C\nHumid: %.1f%%\n", temp, humid);
+  });
+  sensor.onError([](uint8_t error) {
+    Serial.printf("Error: %d-%s\n", error, sensor.getError());
   });
 }
 

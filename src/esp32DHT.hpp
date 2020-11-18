@@ -35,8 +35,8 @@ extern "C" {
 
 namespace esp32DHTInternals {
 
-typedef std::function<void(float, float)> OnData_CB;
-typedef std::function<void(uint8_t)> OnError_CB;
+typedef std::function<void(float humid, float temp)> OnData_CB;
+typedef std::function<void(uint8_t error)> OnError_CB;
 
 }  // end namespace esp32DHTInternals
 
