@@ -22,7 +22,7 @@ DHT22 sensor;
 
 void setup() {
   Serial.begin(112500);
-  sensor.setup(23);
+  sensor.setup(23);  // optionally use another RMT channel: sensor.setup(23, RMT_CHANNEL_2);
   sensor.onData([](float humid, float temp) {
     Serial.printf("Temp: %.1f°C\nHumid: %.1f%%\n", temp, humid);
   });
@@ -41,7 +41,7 @@ void loop() {
 }
 ```
 
-> Note: `setup(uint8_t, rmt_channel_t channel = RMT_CHANNEL_0);` taks 2 arguments: the pin connected to the DHT sensor and the RMT channel[0-7]. The library uses 2 channels and defaults to (starting) channel 0. This means that by default channel 0 and channel 1 are occupied by the DHT and you should not use channel 7. If you're also using other RMT channels (for IR devices, extra DHT sensors, Neopixels...) you have to keep this in mind.
+> Note: `setup(uint8_t, rmt_channel_t channel = RMT_CHANNEL_0);` takes 2 arguments: the pin connected to the DHT sensor and the RMT channel[0-7]. The library uses 2 channels and defaults to (starting) channel 0. This means that by default channel 0 and channel 1 are occupied by the DHT and you should not use channel 7. If you're also using other RMT channels (for IR devices, extra DHT sensors, Neopixels...) you have to keep this in mind.
 >
 > Read more about RMT in the docs: [ESP-IDF documentation](https://esp-idf.readthedocs.io/en/latest/api-reference/peripherals/rmt.html)
 
