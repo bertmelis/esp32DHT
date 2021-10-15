@@ -137,7 +137,7 @@ void DHT::_decode(rmt_item32_t* data, int numItems) {
     _status = 5;
   } else if (numItems > 42) {
     _status = 6;
-  } else if ((data[0].duration0 + data[0].duration1) < 140 && (data[0].duration0 + data[0].duration1) > 180) {
+  } else if ((data[0].duration0 + data[0].duration1) < 140 || (data[0].duration0 + data[0].duration1) > 180) {
     _status = 2;
   } else {
     for (uint8_t i = 1; i < numItems - 1; ++i) {  // don't include tail
