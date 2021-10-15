@@ -111,7 +111,7 @@ void DHT::_readSensor(DHT* instance) {
     pinMode(instance->_pin, INPUT);
     rmt_rx_start(instance->_channel, 1);
     // rmt_set_pin is used untill platformio updates to latest Arduino core.
-    //rmt_set_gpio(instance->_channel, RMT_MODE_RX, static_cast<gpio_num_t>(instance->_pin), false);  // reset after using pin as output
+    // rmt_set_gpio(instance->_channel, RMT_MODE_RX, static_cast<gpio_num_t>(instance->_pin), false);  // reset after using pin as output
     rmt_set_pin(instance->_channel, RMT_MODE_RX, static_cast<gpio_num_t>(instance->_pin));  // reset after using pin as output
 
     // blocks until data is available or timeouts after 1000
