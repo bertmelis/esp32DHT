@@ -119,15 +119,12 @@ void DHT::_readSensor(DHT* instance) {
     if (items) {
       instance->_decode(items, rx_size/sizeof(rmt_item32_t));
       vRingbufferReturnItem(instance->_ringBuf, static_cast<void*>(items));
-      rmt_rx_stop(instance->_channel);
-      pinMode(instance->_pin, OUTPUT);
-      digitalWrite(instance->_pin, HIGH);
     } else {
       instance->_status = 1;  // timeout error
-      rmt_rx_stop(instance->_channel);
-      pinMode(instance->_pin, OUTPUT);
-      digitalWrite(instance->_pin, HIGH);
     }
+    rmt_rx_stop(instance->_channel);
+    pinMode(instance->_pin, OUTPUT);
+    digitalWrite(instance->_pin, HIGH);
 
     // return results
     instance->_tryCallback();
@@ -135,18 +132,19 @@ void DHT::_readSensor(DHT* instance) {
 }
 
 void DHT::_decode(rmt_item32_t* data, int numItems) {
-  if (numItems < 42) {
+  uint8_t pulse = data[0].duration0 + data[0].duration1;
+  if (numItems < 41) {
     _status = 5;
   } else if (numItems > 42) {
     _status = 6;
-  } else if ((data[0].duration0 + data[0].duration1) < 140 || (data[0].duration0 + data[0].duration1) > 180) {
+  } else if (pulse < 130 || pulse > 180) {
     _status = 2;
   } else {
-    for (uint8_t i = 1; i < numItems - 1; ++i) {  // don't include tail
-      uint8_t pulse = data[i].duration0 + data[i].duration1;
+    for (uint8_t i = 1; i < 41; ++i) {  // don't include tail >40
+      pulse = data[i].duration0 + data[i].duration1;
       if (pulse > 55 && pulse < 145) {
         _data[(i - 1) / 8] <<= 1;  // shift left
-        if (pulse > 120) {
+        if (pulse > 110) {
           _data[(i - 1) / 8] |= 1;
         }
       } else {
