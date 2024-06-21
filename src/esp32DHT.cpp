@@ -43,7 +43,7 @@ DHT::~DHT() {
 void DHT::setup(uint8_t pin, rmt_channel_t channel) {
   _pin = pin;
   _channel = channel;
-  rmt_config_t config;
+  rmt_config_t config{};
   config.rmt_mode = RMT_MODE_RX;
   config.channel = _channel;
   config.gpio_num = static_cast<gpio_num_t>(_pin);
