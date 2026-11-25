@@ -54,6 +54,24 @@ void loop() {
 
 `setup(pin, type)` allocates an RMT RX channel automatically. There is no channel number argument. Other RMT users share the available hardware resources, so always check the return value of `setup()`.
 
+### RMT resources
+
+Each successfully initialized `DHT` object reserves **one RMT RX channel and one hardware memory block** until `reset()` or destruction, including the time between polls. It uses no RMT TX channel; the start pulse is generated through GPIO.
+
+| SoC | RMT channels on the chip | Hardware RX symbols per DHT | Maximum initialized DHT objects |
+| --- | --- | --- | --- |
+| ESP32 | 8 shared between TX and RX | 64 | 8 |
+| ESP32-S2 | 4 shared between TX and RX | 64 | 4 |
+| ESP32-S3 | 4 TX + 4 RX | 48 | 4 |
+| ESP32-C3 | 2 TX + 2 RX | 48 | 2 |
+| ESP32-C6 | 2 TX + 2 RX | 48 | 2 |
+
+These limits depend on the chip, so boards using the same SoC have the same RMT capacity. The maximum object counts assume no other RMT users and sufficient RAM for the worker tasks. Other libraries and allocations spanning multiple hardware memory blocks can reduce the available capacity. On ESP32 and ESP32-S2, TX and RX share the same channel pool; the counts are not additive.
+
+The 128-symbol receive buffer is allocated on the worker task's stack and does not reserve additional RMT channels. Reusing one object across GPIOs, as in `DHT22_multiple`, keeps the requirement at one RX channel.
+
+Channel counts follow the target-specific [ESP-IDF RMT definitions](https://github.com/espressif/esp-idf/tree/v6.1.1/components/esp_hal_rmt). See the [RMT resource allocation documentation](https://docs.espressif.com/projects/esp-idf/en/v6.0/esp32/api-reference/peripherals/rmt.html#resource-allocation) for channel and memory sharing.
+
 ### Polling and callbacks
 
 `poll()` returns `true` when a new asynchronous request is accepted. It returns `false` if the object is not ready, a request is already in progress, or the minimum interval has not elapsed. An accepted request can still fail; use `onData()` for successful measurements and `onError()` for acquisition errors.
@@ -67,7 +85,7 @@ The interval is checked against the completion time of the previous request, aft
 
 Callbacks run in the library's worker task, not in `loop()` or an interrupt handler. Keep them short and synchronize application data shared with other tasks. Do not call `reset()`, reconfigure the sensor, or destroy it from a callback. Request these actions from your application task after polling has finished. Serialize access to the object; atomic status fields do not make simultaneous calls to all methods safe.
 
-`getStatus()` provides the current lifecycle state. The implementation finishes each request with `Status::READED`, including requests that failed, so this state is not proof of a valid measurement. Use the callback arguments as the source of successful readings and errors rather than assuming the getters contain a valid sample after every completed request.
+`getStatus()` provides the current lifecycle state and acquisition errors. A successful request finishes with `Status::READED`; a failed request keeps its error status until another request starts or the object is reset. `getTemperature()` and `getHumidity()` return `NAN` after a failed request. Use the callbacks to receive each measurement or acquisition error.
 
 ### Reset and configuration
 

@@ -142,6 +142,13 @@ bool DHT::setup(gpio_num_t gpio, Type type) {
   }
 
   _queue = xQueueCreate(1, sizeof(rmt_rx_done_event_data_t));
+  if (_queue == nullptr) {
+    rmt_del_channel(_channel);
+    _channel = nullptr;
+    _status.store(Status::FAIL_ON_DRIVER);
+    return false;
+  }
+
   rmt_rx_event_callbacks_t cbs = {
     .on_recv_done = _onReceiveDone
   };
@@ -149,6 +156,27 @@ bool DHT::setup(gpio_num_t gpio, Type type) {
     vQueueDelete(_queue);
     rmt_del_channel(_channel);
     _queue = nullptr;
+    _channel = nullptr;
+    _status.store(Status::FAIL_ON_DRIVER);
+    return false;
+  }
+
+  const BaseType_t taskResult = xTaskCreate(
+    (TaskFunction_t)&_read,
+    DHT_TASK_NAME,
+    DHT_TASK_STACK_SIZE,
+    this,
+    DHT_TASK_PRIORITY,
+    &_task
+  );
+
+  if (taskResult != pdPASS) {
+    rmt_disable(_channel);
+    rmt_del_channel(_channel);
+    vQueueDelete(_queue);
+    _channel = nullptr;
+    _queue = nullptr;
+    _task = nullptr;
     _status.store(Status::FAIL_ON_DRIVER);
     return false;
   }
@@ -161,7 +189,6 @@ bool DHT::setup(gpio_num_t gpio, Type type) {
 
   _gpio = gpio;
   _type = type;
-  xTaskCreate((TaskFunction_t)&_read, DHT_TASK_NAME, DHT_TASK_STACK_SIZE, this, DHT_TASK_PRIORITY, &_task);
   _status.store(Status::INITIALIZED);
 
   return true;
@@ -346,7 +373,9 @@ void DHT::_read(DHT* instance) {
     }
 
     instance->_lastReadTime.store(millis());
-    instance->_status.store(Status::READED);
+    if (status == Status::RECEIVED) {
+      instance->_status.store(Status::READED);
+    }
     instance->_polling.store(false);
   }
 }
