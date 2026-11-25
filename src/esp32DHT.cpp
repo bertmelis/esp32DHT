@@ -183,7 +183,7 @@ bool DHT::setup(gpio_num_t gpio, Type type) {
 
   gpio_pullup_dis(gpio);
   gpio_pulldown_dis(gpio);
-  gpio_set_direction(gpio, GPIO_MODE_INPUT_OUTPUT);
+  gpio_set_direction(gpio, GPIO_MODE_INPUT_OUTPUT_OD);
   gpio_set_intr_type(gpio, GPIO_INTR_DISABLE);
   gpio_set_level(gpio, 1);
 

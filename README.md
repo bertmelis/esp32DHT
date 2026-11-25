@@ -54,6 +54,8 @@ void loop() {
 
 `setup(pin, type)` allocates an RMT RX channel automatically. There is no channel number argument. Other RMT users share the available hardware resources, so always check the return value of `setup()`.
 
+DATA uses open-drain GPIO: the ESP32 pulls the line LOW for the start signal and releases it while receiving the sensor's response. A suitable pull-up must hold DATA HIGH when released; it may already be fitted on the sensor module. For compatible 3.3 V wiring, 4.7–5.1 kΩ to 3.3 V is a typical choice. Check the sensor's supply requirements and input thresholds, and use appropriate bidirectional level shifting if needed; a pull-up to 5 V must not connect directly to an ESP32 GPIO.
+
 ### RMT resources
 
 Each successfully initialized `DHT` object reserves **one RMT RX channel and one hardware memory block** until `reset()` or destruction, including the time between polls. It uses no RMT TX channel; the start pulse is generated through GPIO.
