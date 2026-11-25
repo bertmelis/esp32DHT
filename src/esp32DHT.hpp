@@ -24,60 +24,87 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #pragma once
 
+#ifndef DHT_TASK_NAME
+  #define DHT_TASK_NAME "esp32DHT"
+#endif
+
+#ifndef DHT_TASK_STACK_SIZE
+  #define DHT_TASK_STACK_SIZE 2048
+#endif
+
+#ifndef DHT_TASK_PRIORITY
+  #define DHT_TASK_PRIORITY 5
+#endif
+
 extern "C" {
   #include <freertos/FreeRTOS.h>
   #include <freertos/task.h>
+  #include <freertos/queue.h>
   #include <esp32-hal-gpio.h>
-  #include <driver/rmt.h>
+  #include <driver/rmt_rx.h>
   #include <esp_timer.h>
 }
+#include <atomic>
 #include <functional>
-
-namespace esp32DHTInternals {
-
-typedef std::function<void(float humid, float temp)> OnData_CB;
-typedef std::function<void(uint8_t error)> OnError_CB;
-
-}  // end namespace esp32DHTInternals
 
 class DHT {
  public:
+  enum class Status {
+    NONE,
+    INITIALIZED,
+    REQUESTING,
+    RECEIVING,
+    RECEIVED,
+    READED,
+
+    FAIL_ON_DRIVER,
+    NACK,
+    TIMEOUT,
+    BAD_DATA,
+    UNDERFLOW_DATA,
+    OVERFLOW_DATA,
+    BAD_CHECKSUM
+  };
+  enum class Type {
+    DHT11,
+    DHT22
+  };
+  typedef std::function<void(float humidity, float temperature)> DataCallback;
+  typedef std::function<void(Status status)> ErrorCallback;
+
   DHT();
   ~DHT();
-  void setup(uint8_t pin, rmt_channel_t channel = RMT_CHANNEL_0);  // setPin does complete setup of DHT lib
-  void onData(esp32DHTInternals::OnData_CB callback);
-  void onError(esp32DHTInternals::OnError_CB callback);
-  void read();
-  const char* getError() const;
+  void reset();
+  void onData(DataCallback callback);
+  void onError(ErrorCallback callback);
+  gpio_num_t getGpio() const;
+  Type getType() const;
+  Status getStatus() const;
+  virtual unsigned short getWakeupDelay() const;
+  virtual unsigned short getMinReadInterval() const;
+  unsigned long getLastReadTime() const;
+  bool setup(gpio_num_t gpio, Type type);
+  bool setup(uint8_t pin, Type type) { return setup(static_cast<gpio_num_t>(pin), type); }
+  bool isPolling() const;
+  bool poll();
+  virtual float getTemperature() const;
+  virtual float getHumidity() const;
+  static const char* statusToString(const Status status);
 
  protected:
-  uint8_t _status;
+  gpio_num_t _gpio;
+  Type _type;
+  std::atomic<Status> _status;
+  std::atomic<bool> _polling{false};
+  std::atomic<unsigned long> _lastReadTime;
   uint8_t _data[5];
-
- private:
-  static void _readSensor(DHT* instance);
-  void _decode(rmt_item32_t* data, int numItems);
-  void _tryCallback();
-  virtual float _getTemperature() = 0;
-  virtual float _getHumidity() = 0;
-
- private:
-  uint8_t _pin;
-  rmt_channel_t _channel;
-  esp32DHTInternals::OnData_CB _onData;
-  esp32DHTInternals::OnError_CB _onError;
+  DataCallback _onData;
+  ErrorCallback _onError;
+  rmt_channel_handle_t _channel;
   TaskHandle_t _task;
-  RingbufHandle_t _ringBuf;
-};
+  QueueHandle_t _queue;
 
-class DHT11 : public DHT {
- private:
-  float _getTemperature();
-  float _getHumidity();
-};
-
-class DHT22 : public DHT {
- private:
-  float _getTemperature();
-  float _getHumidity();
+  static void _read(DHT* instance);
+  static bool _onReceiveDone(rmt_channel_handle_t, const rmt_rx_done_event_data_t*, void*);
+  void _decode(const rmt_symbol_word_t* data, const size_t numItems);
 };
